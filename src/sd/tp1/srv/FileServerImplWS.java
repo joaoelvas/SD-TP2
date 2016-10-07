@@ -15,8 +15,10 @@ import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Scanner;
 
 import javax.jws.WebMethod;
@@ -46,14 +48,18 @@ public class FileServerImplWS {
 	
 	private OAuth20Service service;
 	private OAuth2AccessToken accessToken;
+	
 	Client client;
 	ClientConfig config;
 	
 	private File basePath;
+	private Map<String,String> albums;
 	
 	public FileServerImplWS() {
 		this.config = new ClientConfig();
 		this.client = ClientBuilder.newClient(config);
+	
+		albums = new HashMap<String,String>();
 		
 		OAuth20Service service = new ServiceBuilder().apiKey(apiKey).apiSecret(apiSecret)
 				.build(ImgurApi.instance());
@@ -96,14 +102,16 @@ public class FileServerImplWS {
 			int i = 0;
 			Iterator albumsIt = albums.iterator();
 			while (albumsIt.hasNext()) {
+				String id = (String) albumsIt.next();
 				OAuthRequest albumReq = new OAuthRequest(Verb.GET,
-						"https://api.imgur.com/3/album/" + albumsIt.next(), service);
+						"https://api.imgur.com/3/album/" + id, service);
 				service.signRequest(accessToken, albumReq);
 				final Response albumRes = albumReq.send();
 				JSONParser parse = new JSONParser();
 				JSONObject resp = (JSONObject) parse.parse(albumRes.getBody());
 				JSONObject album = (JSONObject) resp.get("data");
 				l[i] = (String) album.get("title");
+				this.albums.put((String) album.get("title"), id);
 				i++;
 			}
 		} catch (ParseException e) {
@@ -122,13 +130,9 @@ public class FileServerImplWS {
 	 */
 	@WebMethod
 	public boolean hasAlbum(String name) {
-		File f = new File(basePath, ".");
-		if (f.exists() && f.isDirectory()) {
-			String[] fList = f.list();
-			for(int i = 0; i < fList.length; i++) {
-				if(fList[i].equalsIgnoreCase(name)) {
-					return true;
-				}
+		for(String i : albums.values()) {
+			if(i.equalsIgnoreCase(name)) {
+				return true;
 			}
 		}
 		return false;
